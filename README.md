@@ -2,6 +2,10 @@
 
 ## Overview
 
+<p align="center">
+  <img src="figure_1.png" width="900">
+</p>
+
 FedSegGNN is a federated framework for cross-domain sequential recommendation under **non-shareable item spaces**. It keeps item-dependent modules (embeddings, prediction heads) local while federating only item-agnostic sequence modeling components.
 
 **Key components:**
