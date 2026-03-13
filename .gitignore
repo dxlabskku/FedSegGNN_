@@ -1,0 +1,42 @@
+# ===== Data files (keep directory structure via .gitkeep) =====
+data/**
+!data/**/
+!data/**/.gitkeep
+
+# ===== Logs =====
+log/
+log_abalation_*/
+
+# ===== Checkpoints =====
+checkpoint/
+checkpoints/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# ===== Environments =====
+.env
+.venv
+env/
+venv/
+
+# ===== IDE / Editor =====
+.vscode/
+.idea/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Misc =====
+.claude/
+paperbanana/
+*.log
