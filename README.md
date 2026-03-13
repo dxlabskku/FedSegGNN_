@@ -1,160 +1,141 @@
-<p align="center">
-<img src="pic/FedDCSR-Framework.png" width="700" height="450">
-</p>
+# FedSegGNN: Federated Segment-aware Graph Neural Network for Cross-Domain Sequential Recommendation
 
-<div align="center">
+## Overview
 
-# FedDCSR: Federated Cross-domain Sequential Recommendation via Disentangled Representation Learning
-*[Hongyu Zhang](https://github.com/orion-orion), Dongyi Zheng, Xu Yang, Jiyuan Feng, [Qing Liao](http://liaoqing.hitsz.edu.cn/)\**
+FedSegGNN is a federated framework for cross-domain sequential recommendation under **non-shareable item spaces**. It keeps item-dependent modules (embeddings, prediction heads) local while federating only item-agnostic sequence modeling components.
 
-[![Open Source Love](https://badges.frapsoft.com/os/v2/open-source.svg?v=103)](https://github.com/orion-orion/FedDCSR)[![LICENSE](https://img.shields.io/github/license/orion-orion/FedDCSR)](https://github.com/orion-orion/FedDCSR/blob/main/LICENSE)[![FedDCSR](https://img.shields.io/github/stars/orion-orion/FedDCSR?style=social)](https://github.com/orion-orion/FedDCSR)
-<br/>
-[![FedDCSR](https://img.shields.io/github/directory-file-count/orion-orion/FedDCSR)](https://github.com/orion-orion/FedDCSR) [![FedDCSR](https://img.shields.io/github/languages/code-size/orion-orion/FedDCSR)](https://github.com/orion-orion/FedDCSR)
-</div>
+**Key components:**
+- **DGL-Stream** — Step-level disentangled global–local representation stream that captures fine-grained sequential dynamics.
+- **SDT-Stream** — Segment-based domain token stream that compresses variable-length histories into fixed-size, item-agnostic domain tokens.
+- **DomainGNN** — Server-side similarity graph constructed from uploaded domain embeddings for relation-aware client coordination.
+- **HyperHead** — Lightweight module that produces logit-space corrections conditioned on inter-client relational context.
 
-## 1 Introduction
+## Requirements
 
-This is the source code and baselines of our SDM'24 paper *[FedDCSR: Federated Cross-domain Sequential Recommendation via Disentangled Representation Learning](https://arxiv.org/abs/2309.08420)*. In this paper, we propose **FedDCSR**, a novel federated cross-domain sequential recommendation framework via disentangled representation learning. 
-
-## 2 Dependencies
-
-Run the following command to install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
-Note that my Python version is `3.8.13`. In addition, it is especially important to note that the Pytorch version needs to be `<=1.7.1`, otherwise the autograd engine of Pytorch will report an error.
 
-## 3 Dataset
+**Core dependencies:** Python 3.8+, PyTorch ≤ 1.7.1, NumPy, SciPy, tqdm
 
-As used in many cross-domain recommendation methods, we utilize the publicly available datasets from [Amazon](https://jmcauley.ucsd.edu/data/amazon/}{https://jmcauley.ucsd.edu/data/amazon/) (an e-commerce platform) to construct the federated CSR scenarios. We select ten domains to generate three cross-domain scenarios: Food-Kitchen-Cloth-Beauty (FKCB), Movie-Book-Game (MBG), and Sports-Garden-Home (SGH). 
+## Dataset
 
-The preprocessed CSR datasets can be downloaded from [Google Drive](https://drive.google.com/drive/folders/1NnZN3LhzdpxwaHiOW8GAUS8noTbdLlQt?usp=drive_link). You can download them and place them in the `./data` path of this project.
+We evaluate on **KuaiRand-27K**, a large-scale short-video recommendation benchmark with multiple exposure scenarios. We consider a four-domain cross-scenario setting (Tab0, Tab1, Tab2, Tab4).
 
-## 4 Code Structure
+| Domain | #Users | #Items | #Sequences | Avg Length |
+|--------|-------:|-------:|-----------:|-----------:|
+| Tab0   |  6,471 | 24,804 |     19,413 |      70.34 |
+| Tab1   | 27,000 |361,056 |     81,000 |      97.65 |
+| Tab2   |  2,200 | 17,317 |      6,600 |      84.01 |
+| Tab4   | 15,055 |109,904 |     45,165 |      85.48 |
+
+Place your preprocessed data under the `data/` directory. The folder structure is preserved in this repository; populate each domain folder with the corresponding data files.
+
+## Project Structure
+
+```
+FedSegGNN/
+├── main.py                 # Entry point with full data pipeline
+├── fl.py                   # Federated learning orchestration
+├── server.py               # Server-side aggregation and graph construction
+├── client.py               # Client-side training coordination
+├── trainer.py              # Training and evaluation logic
+├── dataset.py              # Dataset class
+├── dataloader.py           # Custom dataloader
+├── local_graph.py          # Local item relation graph
+├── losses.py               # Loss functions
+├── models/
+│   ├── segfedgnn/          # FedSegGNN (Ours)
+│   │   ├── dual_stream_model.py   # DGL-Stream + SDT-Stream
+│   │   ├── domain_hyper.py        # DomainGNN & HyperHead
+│   │   ├── dgl/                   # DGL-Stream modules
+│   │   └── sdss/                  # SDT-Stream modules
+│   ├── sasrec/             # SASRec baseline
+│   ├── vsan/               # VSAN baseline
+│   ├── vgsan/              # VGSAN baseline
+│   ├── cl4srec/            # CL4SRec baseline
+│   ├── duorec/             # DuoRec baseline
+│   └── contrastvae/        # ContrastVAE baseline
+├── utils/                  # Data, IO, and training utilities
+├── run.sh                  # Main training script
+├── train_csta.sh           # Multi-seed experiment runner
+├── train_baselines.sh      # Baseline training script
+└── train_feddcsr.sh        # FedDCSR baseline training script
+```
+
+## Training
+
+### FedSegGNN (Ours)
 
 ```bash
-FedDCSR
-├── LICENSE                                     LICENSE file
-├── README.md                                   README file 
-├── checkpoint                                  Model checkpoints saving directory
-│   └── ...
-├── data                                        Data directory
-│   └── ...
-├── log                                         Log directory
-│   └── ...
-├── models                                      Local model packages
-│   ├── __init__.py                             Package initialization file
-│   ├── cl4srec                                 CL4SRec package
-│   │   ├── __init__.py                         Package initialization
-│   │   ├── cl4srec_model.py                    Model architecture
-│   │   ├── config.py                           Model configuration file
-│   │   └── modules.py                          Backbone modules (such as self-attention)
-│   └── ...
-├── pic                                         Picture directory
-│   └── FedDCSR-Framework.png                   Model framework diagram
-├──  utils                                      Tools such as data reading, IO functions, training strategies, etc.
-│    ├── __init__.py                            Package initialization file
-│    ├── data_utils.py                          Data reading
-│    ├── io_utils.py                            IO functions
-│    └── train_utils.py                         Training strategies
-├── client.py                                   Client architecture   
-├── dataloader.py                               Customized dataloader
-├── dataset.py                                  Customized dataset          
-├── fl.py                                       The overall process of federated learning
-├── local_graph.py                              Local graph data structure
-├── losses.py                                   Loss functions
-├── main.py                                     Main function, including the complete data pipeline
-├── requirements.txt                            Dependencies installation
-├── server.py                                   Server-side model parameters and user representations aggregation
-├── trainer.py                                  Training and test methods of FedDCSR and other baselines
-└── .gitignore                                  .gitignore file
+bash run.sh
 ```
 
-
-## 5 Train & Eval
-
-### 5.1 Our method
-
-To train FedDCSR (ours), you can run the following command:
+Key environment variables for customization:
 
 ```bash
-python -u main.py \
-        --epochs 40 \
-        --local_epoch 3 \
-        --eval_interval 1 \
-        --frac 1.0 \
-        --batch_size 256 \
-        --log_dir log \
-        --method FedDCSR \
-        --anneal_cap 1.0 \
-        --lr 0.001 \
-        --seed 42 \
-        Food Kitchen Clothing Beauty
+METHOD=SegFedGNN           # Model selection
+MAX_SEQ_LEN=200            # Maximum sequence length
+SDSS_NUM_SEGMENTS=64       # Number of segments (S) in SDT-Stream
+DOMAIN_KNN_K=2             # Top-k neighbors for DomainGNN
+HYPER_RANK=1               # Rank for HyperHead
+EPOCHS=20                  # Communication rounds
+LOCAL_EPOCH=1              # Local training epochs per round
+BATCH_SIZE=8               # Batch size
+LR=0.001                   # Learning rate
+SEED=42                    # Random seed
+GPU=0                      # GPU device ID
 ```
-There are a few points to note:
 
-- the positional arguments `Food Kitchen Clothing Beauty` indicates training FedDCSR in FKCB scenario. If you want to choose another scenario, you can change it to `Move Book Game` (MBG) or `Sports Garden Home` (SGH).
-
-- The argument `--anneal_cap` is used to control KL annealing for variantional method (including ours). For FKCB, `1.0` is the best; for MBG and SGH, `0.01` is the best.
-
-- If you restart training the model in a certain scenario, you can add the parameter `--load_prep` to load the dataset preprocessed in the previous training to avoid repeated data preprocessing
-
-To test FedDCSR, you can run the following command:
-```bash
-python -u main.py \
-        --log_dir log \
-        --method FedDCSR \
-        --do_eval \
-        --seed 42 \
-        Food Kitchen Clothing Beauty
-```
-### 5.2 Baselines
-
-To train other baselines (FedSASRec, FedVSAN, FedContrastVAE, FedCL4SRec, FedDuoRec), you can run the following command:
-```bash
-python -u main.py \
-        --epochs 40 \
-        --local_epoch 3 \
-        --eval_interval 1 \
-        --frac 1.0 \
-        --batch_size 256 \
-        --log_dir log \
-        --method FedContrastVAE \
-        --anneal_cap 1.0 \
-        --lr 0.001 \
-        --seed 42 \
-        Food Kitchen Clothing Beauty
-```
-For the local version without federated aggregation, you can run the following command:
+Example with custom settings:
 
 ```bash
-python -u main.py \
-        --epochs 40 \
-        --local_epoch 3 \
-        --eval_interval 1 \
-        --frac 1.0 \
-        --batch_size 256 \
-        --log_dir log \
-        --method LocalContrastVAE \
-        --anneal_cap 1.0 \
-        --lr 0.001 \
-        --seed 42 \
-        Food Kitchen Clothing Beauty
+METHOD=SegFedGNN MAX_SEQ_LEN=200 SDSS_NUM_SEGMENTS=64 SEED=42 GPU=0 bash run.sh
 ```
 
+### Baselines
 
+Federated baselines (FedSASRec, FedVSAN, FedVGSAN, FedContrastVAE, FedCL4SRec, FedDuoRec, FedDCSR):
 
-## 6 Citation
-If you find this work useful for your research, please kindly cite FedDCSR by:
-```text
-@inbook{Zhang_2024,
-   title={FedDCSR: Federated Cross-domain Sequential Recommendation via Disentangled Representation Learning},
-   ISBN={9781611978032},
-   url={http://dx.doi.org/10.1137/1.9781611978032.62},
-   DOI={10.1137/1.9781611978032.62},
-   booktitle={Proceedings of the 2024 SIAM International Conference on Data Mining (SDM)},
-   publisher={Society for Industrial and Applied Mathematics},
-   author={Zhang, Hongyu and Zheng, Dongyi and Yang, Xu and Feng, Jiyuan and Liao, Qing},
-   year={2024},
-   month=jan, pages={535–543} }
+```bash
+METHOD=FedSASRec bash train_baselines.sh
 ```
+
+Local baselines (without federation):
+
+```bash
+METHOD=LocalSASRec bash train_baselines.sh
+```
+
+### Multi-seed Experiments
+
+```bash
+bash train_csta.sh
+```
+
+## Results
+
+Performance on KuaiRand-27K (four-domain setting, macro-average):
+
+| Method | MRR | HR@10 | NDCG@10 |
+|--------|----:|------:|--------:|
+| FedSASRec | 6.37 | 12.50 | 6.94 |
+| FedVSAN | 6.47 | 12.68 | 7.12 |
+| FedContrastVAE | 7.13 | 13.46 | 7.75 |
+| FedCL4SRec | 6.60 | 12.29 | 7.22 |
+| FedDuoRec | 6.17 | 11.87 | 6.71 |
+| FedDCSR | 8.07 | 15.57 | 8.86 |
+| **FedSegGNN (Ours)** | **14.35** | **27.25** | **16.52** |
+
+## Citation
+
+```bibtex
+@article{fedseggnn2025,
+  title={FedSegGNN: Federated Segment-aware Graph Neural Network for Cross-Domain Sequential Recommendation},
+  year={2025}
+}
+```
+
+## Acknowledgments
+
+This codebase builds upon [FedDCSR](https://github.com/orion-orion/FedDCSR). We thank the original authors for their open-source implementation.
